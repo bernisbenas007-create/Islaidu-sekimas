@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Mano Finansai</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4CAF50">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+}
+
+body{
+font-family:Arial, sans-serif;
+background:#f4f7fb;
+padding:20px;
+color:#222;
+}
+
+.container{
+max-width:700px;
+margin:auto;
+}
+
+.card{
+background:white;
+padding:20px;
+border-radius:20px;
+margin-bottom:20px;
+box-shadow:0 4px 12px rgba(0,0,0,0.08);
+}
+
+h1{
+text-align:center;
+margin-bottom:20px;
+color:#2e7d32;
+}
+
+h2{
+margin-bottom:15px;
+}
+
+input,
+select,
+button{
+width:100%;
+padding:14px;
+margin-top:10px;
+border-radius:12px;
+border:1px solid #ddd;
+font-size:16px;
+}
+
+button{
+background:#4CAF50;
+color:white;
+border:none;
+font-weight:bold;
+cursor:pointer;
+transition:0.2s;
+}
+
+button:hover{
+background:#43a047;
+}
+
+.balance{
+font-size:30px;
+font-weight:bold;
+text-align:center;
+margin-top:10px;
+}
+
+.income{
+color:#2e7d32;
+}
+
+.expense{
+color:#c62828;
+}
+
+.transaction{
+background:#f1f3f6;
+padding:14px;
+border-radius:14px;
+margin-top:10px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+}
+
+.small{
+font-size:14px;
+color:#666;
+}
+
+.delete-btn{
+background:#e53935;
+padding:8px 12px;
+width:auto;
+font-size:14px;
+}
+
+.stats-grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:15px;
+margin-top:15px;
+}
+
+.stat-box{
+background:#f1f3f6;
+padding:15px;
+border-radius:15px;
+text-align:center;
+}
+
+canvas{
+margin-top:20px;
+}
+
+.empty{
+text-align:center;
+color:#777;
+padding:20px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>💸 Mano Finansai</h1>
+
+<div class="card">
+<h2>➕ Pridėti įrašą</h2>
+
+<input type="number" id="amount" placeholder="Suma (€)">
+
+<select id="type">
+<option value="expense">Išlaidos</option>
+<option value="income">Pajamos</option>
+</select>
+
+<select id="category">
+<option>Maistas</option>
+<option>Transportas</option>
+<option>Pramogos</option>
+<option>Mokykla</option>
+<option>Drabužiai</option>
+<option>Kita</option>
+</select>
+
+<input type="date" id="date">
+
+<button onclick="addTransaction()">Pridėti</button>
+</div>
+
+<div class="card">
+<h2>💰 Balansas</h2>
+<div class="balance" id="balance">€0</div>
+
+<div class="stats-grid">
+<div class="stat-box">
+<h3>Pajamos</h3>
+<p id="incomeTotal">€0</p>
+</div>
+
+<div class="stat-box">
+<h3>Išlaidos</h3>
+<p id="expenseTotal">€0</p>
+</div>
+</div>
+</div>
+
+<div class="card">
+<h2>📊 Savaitės statistika</h2>
+<p>Savaitės išlaidų vidurkis: <strong id="weeklyAverage">€0</strong></p>
+<canvas id="chart"></canvas>
+</div>
+
+<div class="card">
+<h2>📝 Įrašai</h2>
+<div id="transactions"></div>
+</div>
+
+</div>
+
+<script>
+
+let transactions = JSON.parse(localStorage.getItem("transactions")) || [];
+
+const amountInput = document.getElementById("amount");
+const dateInput = document.getElementById("date");
+
+dateInput.valueAsDate = new Date();
+
+function saveData(){
+localStorage.setItem("transactions", JSON.stringify(transactions));
+}
+
+function addTransaction(){
+
+const amount = parseFloat(amountInput.value);
+const type = document.getElementById("type").value;
+const category = document.getElementById("category").value;
+const date = document.getElementById("date").value;
+
+if(!amount || amount <= 0){
+alert("Įvesk teisingą sumą");
+return;
+}
+
+transactions.push({
+amount,
+type,
+category,
+date
+});
+
+saveData();
+render();
+
+amountInput.value = "";
+amountInput.focus();
+}
+
+function deleteTransaction(index){
+
+if(confirm("Ištrinti įrašą?")){
+transactions.splice(index,1);
+saveData();
+render();
+}
+}
+
+function render(){
+
+const transactionsDiv = document.getElementById("transactions");
+const balanceDiv = document.getElementById("balance");
+const incomeDiv = document.getElementById("incomeTotal");
+const expenseDiv = document.getElementById("expenseTotal");
+const weeklyAverageDiv = document.getElementById("weeklyAverage");
+
+transactionsDiv.innerHTML = "";
+
+if(transactions.length === 0){
+transactionsDiv.innerHTML = `
+<div class="empty">
+Dar nėra įrašų 👀
+</div>
+`;
+}
+
+let income = 0;
+let expense = 0;
+
+transactions.forEach((t,index)=>{
+
+if(t.type === "income"){
+income += t.amount;
+}else{
+expense += t.amount;
+}
+
+transactionsDiv.innerHTML += `
+<div class="transaction">
+<div>
+<strong>${t.category}</strong><br>
+<span class="small">${t.date}</span><br>
+<span class="${t.type === 'income' ? 'income' : 'expense'}">
+${t.type === 'income' ? '+' : '-'}€${t.amount}
+</span>
+</div>
+
+<button class="delete-btn" onclick="deleteTransaction(${index})">
+Trinti
+</button>
+</div>
+`;
+});
+
+const balance = income - expense;
+
+balanceDiv.innerText = `€${balance.toFixed(2)}`;
+incomeDiv.innerText = `€${income.toFixed(2)}`;
+expenseDiv.innerText = `€${expense.toFixed(2)}`;
+
+const weeklyAverage = (expense / 7).toFixed(2);
+weeklyAverageDiv.innerText = `€${weeklyAverage}`;
+
+updateChart();
+}
+
+let chart;
+
+function updateChart(){
+
+const categories = {};
+
+transactions.forEach(t=>{
+if(t.type === "expense"){
+if(!categories[t.category]){
+categories[t.category] = 0;
+}
+categories[t.category] += t.amount;
+}
+});
+
+const ctx = document.getElementById("chart");
+
+if(chart){
+chart.destroy();
+}
+
+chart = new Chart(ctx, {
+type: 'doughnut',
+data: {
+labels: Object.keys(categories),
+datasets: [{
+data: Object.values(categories)
+}]
+},
+options: {
+responsive:true
+}
+});
+}
+
+render();
+
+if ('serviceWorker' in navigator) {
+navigator.serviceWorker.register('service-worker.js');
+}
+
+</script>
+
+</body>
+</html>
